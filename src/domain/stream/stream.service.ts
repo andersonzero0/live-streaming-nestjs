@@ -13,6 +13,8 @@ export class StreamService implements OnModuleInit {
     { username: 'user2', streaming: false },
   ];
 
+  rtmpServer: NodeMediaServer;
+
   async onModuleInit() {
     ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 
@@ -28,10 +30,10 @@ export class StreamService implements OnModuleInit {
         ping: 30,
         ping_timeout: 60,
       },
-      //logType: 0,
+      logType: 0,
     };
 
-    const rtmpServer = new NodeMediaServer(config);
+    this.rtmpServer = new NodeMediaServer(config);
 
     // auth
     /*rtmpServer.on('preConnect', (id, args) => {
@@ -50,34 +52,43 @@ export class StreamService implements OnModuleInit {
       this.logger.debug(
         `[NodeEvent on doneConnect] id=${id} args=${JSON.stringify(args)}`,
       );
-    });
+    });*/
 
-    rtmpServer.on('prePublish', (id, StreamPath, args) => {
+    this.rtmpServer.on('prePublish', (id, StreamPath, args) => {
       this.logger.debug(
         `[NodeEvent on prePublish] id=${id} StreamPath=${StreamPath} args=${JSON.stringify(args)}`,
       );
-    });*/
-
-    // streaming true
-    rtmpServer.on('postPublish', (id, StreamPath, args) => {
-      this.logger.debug(
-        `[NodeEvent on postPublish] id=${id} StreamPath=${StreamPath} args=${JSON.stringify(args)}`,
-      );
-
-      const session = rtmpServer.getSession(id);
-
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
-      session.reject();
 
       StreamPath = StreamPath.split('/')[2];
 
       const user = this.users.find((user) => user.username === StreamPath);
 
+      const session = this.rtmpServer.getSession(id);
+
       if (!user || user.streaming) {
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        session.reject();
         this.logger.debug('User not found or already streaming');
         return;
       }
+
+      const dir = `./public/media/${StreamPath}`;
+      if (fs.existsSync(dir)) {
+        this.logger.debug('Deleting directory: ' + dir);
+        fs.rmSync(dir, {
+          recursive: true,
+        });
+      }
+    });
+
+    // streaming true
+    this.rtmpServer.on('postPublish', (id, StreamPath, args) => {
+      this.logger.debug(
+        `[NodeEvent on postPublish] id=${id} StreamPath=${StreamPath} args=${JSON.stringify(args)}`,
+      );
+
+      StreamPath = StreamPath.split('/')[2];
 
       this.users.forEach((user) => {
         if (user.username === StreamPath) {
@@ -88,8 +99,7 @@ export class StreamService implements OnModuleInit {
       this.transcode(StreamPath);
     });
 
-    // delete output.m3u8 and output*.ts files / streaming false
-    rtmpServer.on('donePublish', (id, StreamPath, args) => {
+    this.rtmpServer.on('donePublish', (id, StreamPath, args) => {
       this.logger.debug(
         `[NodeEvent on donePublish] id=${id} StreamPath=${StreamPath} args=${JSON.stringify(args)}`,
       );
@@ -143,7 +153,7 @@ export class StreamService implements OnModuleInit {
       );
     });*/
 
-    rtmpServer.run();
+    this.rtmpServer.run();
   }
 
   transcode(streamPath: string) {
