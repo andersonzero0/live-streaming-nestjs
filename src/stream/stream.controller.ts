@@ -4,6 +4,7 @@ import {
   HttpException,
   HttpStatus,
   Next,
+  Param,
   Req,
   Res,
 } from '@nestjs/common';
@@ -15,7 +16,6 @@ import * as zlib from 'zlib';
 @Controller('stream')
 export class StreamController {
   private readonly path: string;
-  private readonly dir: string;
   private readonly debugPlayer: boolean;
   private readonly provider = fsProvider;
   private CONTENT_TYPE = {
@@ -25,39 +25,36 @@ export class StreamController {
   };
 
   constructor() {
-    this.path = '/'; // Base path do servidor
-    this.dir = 'public/media/test'; // Diretório onde estão os arquivos HLS
-    this.debugPlayer = true; // Ativar o debug player
+    this.path = '/';
+    this.debugPlayer = true;
   }
 
-  @Get('*')
+  @Get(':username/*')
   async serveHLS(
     @Req() req: Request,
     @Res() res: Response,
     @Next() next: NextFunction,
+    @Param('username') username: string,
+    @Param() params: string[],
   ) {
-    const uri = req.url.split('/').slice(2).join('/');
+    if (username === 'player.html' && this.debugPlayer) {
+      return this.writeDebugPlayer(res);
+    }
+
+    const uri = params[0] || 'output.m3u8';
 
     const uriRelativeToPath = uri.startsWith(this.path)
       ? uri.slice(this.path.length)
       : uri;
 
     const relativePath = path.normalize(uriRelativeToPath);
-    const filePath = path.join(this.dir, relativePath);
+    const filePath = path.join(`public/media/${username}`, relativePath);
     const extension = path.extname(filePath);
 
     req['filePath'] = filePath;
 
-    console.log('filePath', filePath);
-
-    // Verifica se Gzip é aceito
     const ae = req.headers['accept-encoding'] || '';
     req['acceptsCompression'] = ae.includes('gzip');
-
-    // Se for o player de debug, retorna o HTML do player
-    if (uri === '/player.html' && this.debugPlayer) {
-      return this.writeDebugPlayer(res);
-    }
 
     this.provider.exists(req, (err: any, exists: boolean) => {
       if (err) {
@@ -70,6 +67,7 @@ export class StreamController {
       } else {
         switch (extension) {
           case '.m3u8':
+            req.headers['req-username'] = username;
             return this.writeManifest(req, res, next);
           case '.ts':
             return this.writeSegment(req, res);
@@ -82,9 +80,37 @@ export class StreamController {
 
   private writeDebugPlayer(res: Response) {
     res.setHeader('Content-Type', this.CONTENT_TYPE.HTML);
-    res
-      .status(HttpStatus.OK)
-      .send('<h1>HLS Debug Player</h1><p>Player em desenvolvimento...</p>');
+    res.status(HttpStatus.OK).send(`
+      <html>
+      <head><title>Debug Player</title></head>
+        <body>
+        <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+        <video controls id="video"></video>
+        <br>
+        <input type="text" />
+        <button id="load">Load</button>
+        <script>
+          if(Hls.isSupported()) {
+            var video = document.getElementById('video');
+            var hls = new Hls();
+            hls.attachMedia(video);
+            hls.on(Hls.Events.MANIFEST_PARSED,function() {
+              video.play();
+            });
+            document.querySelector("#load").addEventListener("click", function () {
+              hls.loadSource(document.querySelector("input").value);
+            })
+         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            video.addEventListener('canplay',function() {
+              video.play();
+            });
+            document.querySelector("#load").addEventListener("click", function () {
+              video.src = document.querySelector("input").value;
+            })
+          }
+        </script>
+        </body>
+      </html>`);
   }
 
   private writeManifest(req: Request, res: Response, next: NextFunction) {

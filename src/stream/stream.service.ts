@@ -3,12 +3,9 @@ import ffmpeg from 'fluent-ffmpeg';
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
 import * as fs from 'fs';
 import NodeMediaServer from 'node-media-server';
-import { HttpAdapterHost } from '@nestjs/core';
 
 @Injectable()
 export class StreamService implements OnModuleInit {
-  constructor(private httpAdapterHost: HttpAdapterHost) {}
-
   private logger = new Logger('StreamService');
 
   async onModuleInit() {
