@@ -1,18 +1,10 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { StreamModule } from './stream/stream.module';
-import { ServeStaticModule } from '@nestjs/serve-static';
-import { join } from 'path';
+import { StreamModule } from './domain/stream/stream.module';
 
 @Module({
-  imports: [
-    ServeStaticModule.forRoot({
-      rootPath: join(__dirname, '..', 'public/media'),
-      serveRoot: '/stream',
-    }),
-    StreamModule,
-  ],
+  imports: [StreamModule],
   controllers: [AppController],
   providers: [AppService],
 })
