@@ -3,15 +3,14 @@ import ffmpeg from 'fluent-ffmpeg';
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
 import * as fs from 'fs';
 import NodeMediaServer from 'node-media-server';
+import { UsersService } from '../users/users.service';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class StreamService implements OnModuleInit {
-  private logger = new Logger('StreamService');
+  constructor(private readonly usersService: UsersService) {}
 
-  private users: { username: string; streaming: boolean }[] = [
-    { username: 'user1', streaming: false },
-    { username: 'user2', streaming: false },
-  ];
+  private logger = new Logger('StreamService');
 
   rtmpServer: NodeMediaServer;
 
@@ -31,45 +30,95 @@ export class StreamService implements OnModuleInit {
         ping_timeout: 60,
       },
       logType: 0,
+      auth: {
+        play: true,
+        publish: true,
+        secret: `${process.env.RTMP_SECRET_KEY}`,
+      },
     };
 
     this.rtmpServer = new NodeMediaServer(config);
 
     // auth
-    /*rtmpServer.on('preConnect', (id, args) => {
+    /*this.rtmpServer.on('preConnect', (id, args) => {
       this.logger.debug(
         `[NodeEvent on preConnect] id=${id} args=${JSON.stringify(args)}`,
       );
     });
 
-    rtmpServer.on('postConnect', (id, args) => {
+    this.rtmpServer.on('postConnect', (id, args) => {
       this.logger.debug(
         `[NodeEvent on postConnect] id=${id} args=${JSON.stringify(args)}`,
       );
     });
 
-    rtmpServer.on('doneConnect', (id, args) => {
+    this.rtmpServer.on('doneConnect', (id, args) => {
       this.logger.debug(
         `[NodeEvent on doneConnect] id=${id} args=${JSON.stringify(args)}`,
       );
     });*/
 
-    this.rtmpServer.on('prePublish', (id, StreamPath, args) => {
+    this.rtmpServer.on('prePublish', async (id, StreamPath, args: any) => {
       this.logger.debug(
         `[NodeEvent on prePublish] id=${id} StreamPath=${StreamPath} args=${JSON.stringify(args)}`,
       );
 
-      StreamPath = StreamPath.split('/')[2];
-
-      const user = this.users.find((user) => user.username === StreamPath);
-
       const session = this.rtmpServer.getSession(id);
 
-      if (!user || user.streaming) {
+      const path = StreamPath.split('/')[1];
+      StreamPath = StreamPath.split('/')[2];
+
+      if (
+        path !== 'live' ||
+        !StreamPath ||
+        !args ||
+        !args.sign ||
+        typeof args.sign !== 'string'
+      ) {
         // eslint-disable-next-line @typescript-eslint/ban-ts-comment
         // @ts-ignore
         session.reject();
-        this.logger.debug('User not found or already streaming');
+        return;
+      }
+
+      const sign: string = args.sign;
+
+      if (sign.split('-').length !== 2) {
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        session.reject();
+        return;
+      }
+
+      let exp: string | number = sign.split('-')[0];
+
+      if (isNaN(Number(exp))) {
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        session.reject();
+        return;
+      }
+
+      exp = Number(exp);
+
+      const hash = sign.split('-')[1];
+
+      if (exp < Date.now() / 1000) {
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        session.reject();
+        return;
+      }
+
+      const compareHash = crypto
+        .createHash('md5')
+        .update(`/live/${StreamPath}-${exp}-${process.env.RTMP_SECRET_KEY}`)
+        .digest('hex');
+
+      if (hash !== compareHash) {
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        session.reject();
         return;
       }
 
@@ -83,18 +132,14 @@ export class StreamService implements OnModuleInit {
     });
 
     // streaming true
-    this.rtmpServer.on('postPublish', (id, StreamPath, args) => {
+    this.rtmpServer.on('postPublish', async (id, StreamPath, args) => {
       this.logger.debug(
         `[NodeEvent on postPublish] id=${id} StreamPath=${StreamPath} args=${JSON.stringify(args)}`,
       );
 
       StreamPath = StreamPath.split('/')[2];
 
-      this.users.forEach((user) => {
-        if (user.username === StreamPath) {
-          user.streaming = true;
-        }
-      });
+      console.log('postPublish', StreamPath);
 
       this.transcode(StreamPath);
     });
@@ -103,12 +148,6 @@ export class StreamService implements OnModuleInit {
       this.logger.debug(
         `[NodeEvent on donePublish] id=${id} StreamPath=${StreamPath} args=${JSON.stringify(args)}`,
       );
-
-      this.users.forEach((user) => {
-        if (user.username === StreamPath.split('/')[2]) {
-          user.streaming = false;
-        }
-      });
     });
 
     /*rtmpServer.on('prePlay', (id, StreamPath, args) => {
