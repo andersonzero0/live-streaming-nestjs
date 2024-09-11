@@ -26,8 +26,8 @@ export class StreamService implements OnModuleInit {
         port: 1935,
         chunk_size: 4096,
         gop_cache: true,
-        ping: 30,
-        ping_timeout: 60,
+        ping: 25,
+        ping_timeout: 50,
       },
       logType: 0,
       auth: {
@@ -65,64 +65,15 @@ export class StreamService implements OnModuleInit {
 
       const session = this.rtmpServer.getSession(id);
 
-      const path = StreamPath.split('/')[1];
-      StreamPath = StreamPath.split('/')[2];
-
-      if (
-        path !== 'live' ||
-        !StreamPath ||
-        !args ||
-        !args.sign ||
-        typeof args.sign !== 'string'
-      ) {
+      if (!this.isAuthRtmp(StreamPath, args)) {
         // eslint-disable-next-line @typescript-eslint/ban-ts-comment
         // @ts-ignore
         session.reject();
-        return;
       }
 
-      const sign: string = args.sign;
+      const username = StreamPath.split('/')[2];
 
-      if (sign.split('-').length !== 2) {
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore
-        session.reject();
-        return;
-      }
-
-      let exp: string | number = sign.split('-')[0];
-
-      if (isNaN(Number(exp))) {
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore
-        session.reject();
-        return;
-      }
-
-      exp = Number(exp);
-
-      const hash = sign.split('-')[1];
-
-      if (exp < Date.now() / 1000) {
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore
-        session.reject();
-        return;
-      }
-
-      const compareHash = crypto
-        .createHash('md5')
-        .update(`/live/${StreamPath}-${exp}-${process.env.RTMP_SECRET_KEY}`)
-        .digest('hex');
-
-      if (hash !== compareHash) {
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore
-        session.reject();
-        return;
-      }
-
-      const dir = `./public/media/${StreamPath}`;
+      const dir = `./public/media/${username}`;
       if (fs.existsSync(dir)) {
         this.logger.debug('Deleting directory: ' + dir);
         fs.rmSync(dir, {
@@ -132,16 +83,28 @@ export class StreamService implements OnModuleInit {
     });
 
     // streaming true
-    this.rtmpServer.on('postPublish', async (id, StreamPath, args) => {
+    this.rtmpServer.on('postPublish', async (id, StreamPath, args: any) => {
       this.logger.debug(
         `[NodeEvent on postPublish] id=${id} StreamPath=${StreamPath} args=${JSON.stringify(args)}`,
       );
 
-      StreamPath = StreamPath.split('/')[2];
+      const username = StreamPath.split('/')[2];
 
-      console.log('postPublish', StreamPath);
+      const user = await this.usersService.findOne(username);
 
-      this.transcode(StreamPath);
+      if (!user) {
+        return;
+      }
+
+      await this.usersService.updateStreaming({
+        id: user.id,
+        streaming: true,
+      });
+
+      if (username && args && args.sign && typeof args.sign === 'string') {
+        console.log('Transcoding...');
+        this.transcode(username, args.sign);
+      }
     });
 
     this.rtmpServer.on('donePublish', (id, StreamPath, args) => {
@@ -150,19 +113,27 @@ export class StreamService implements OnModuleInit {
       );
     });
 
-    /*rtmpServer.on('prePlay', (id, StreamPath, args) => {
+    this.rtmpServer.on('prePlay', (id, StreamPath, args) => {
       this.logger.debug(
         `[NodeEvent on prePlay] id=${id} StreamPath=${StreamPath} args=${JSON.stringify(args)}`,
       );
+
+      const session = this.rtmpServer.getSession(id);
+
+      if (!this.isAuthRtmp(StreamPath, args)) {
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore
+        session.reject();
+      }
     });
 
-    rtmpServer.on('postPlay', (id, StreamPath, args) => {
+    this.rtmpServer.on('postPlay', (id, StreamPath, args) => {
       this.logger.debug(
         `[NodeEvent on postPlay] id=${id} StreamPath=${StreamPath} args=${JSON.stringify(args)}`,
       );
     });
 
-    rtmpServer.on('donePlay', (id, StreamPath, args) => {
+    /*rtmpServer.on('donePlay', (id, StreamPath, args) => {
       this.logger.debug(
         `[NodeEvent on donePlay] id=${id} StreamPath=${StreamPath} args=${JSON.stringify(args)}`,
       );
@@ -195,13 +166,13 @@ export class StreamService implements OnModuleInit {
     this.rtmpServer.run();
   }
 
-  transcode(streamPath: string) {
+  transcode(streamPath: string, sign: string) {
     const dir = `./public/media/${streamPath}`;
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
 
-    ffmpeg(`rtmp://localhost:1935/live/${streamPath}`)
+    ffmpeg(`rtmp://localhost:1935/live/${streamPath}?sign=${sign}`)
       .addOptions([
         '-c:v libx264',
         '-preset ultrafast',
@@ -209,23 +180,80 @@ export class StreamService implements OnModuleInit {
         '-maxrate 3000k',
         '-bufsize 6000k',
         '-pix_fmt yuv420p',
-        '-g 50',
+        '-g 30',
         '-c:a aac',
         '-b:a 160k',
         '-ac 2',
         '-ar 44100',
         '-f hls',
-        '-hls_time 2',
+        '-hls_time 1',
         '-hls_flags delete_segments',
-        '-hls_list_size 3',
+        '-hls_list_size 2',
       ])
       .output(`./public/media/${streamPath}/output.m3u8`)
       .on('start', () => {
         console.log('FFmpeg started with command');
       })
-      .on('end', () => {
+      .on('end', async () => {
         console.log('Conversion finished');
+
+        const user = await this.usersService.findOne(streamPath);
+
+        if (!user) {
+          return;
+        }
+
+        await this.usersService.updateStreaming({
+          id: user.id,
+          streaming: false,
+        });
       })
       .run();
+  }
+
+  isAuthRtmp(StreamPath: string, args: any): boolean {
+    const path = StreamPath.split('/')[1];
+    StreamPath = StreamPath.split('/')[2];
+
+    if (
+      path !== 'live' ||
+      !StreamPath ||
+      !args ||
+      !args.sign ||
+      typeof args.sign !== 'string'
+    ) {
+      return false;
+    }
+
+    const sign: string = args.sign;
+
+    if (sign.split('-').length !== 2) {
+      return false;
+    }
+
+    let exp: string | number = sign.split('-')[0];
+
+    if (isNaN(Number(exp))) {
+      return false;
+    }
+
+    exp = Number(exp);
+
+    const hash = sign.split('-')[1];
+
+    if (exp < Date.now() / 1000) {
+      return false;
+    }
+
+    const compareHash = crypto
+      .createHash('md5')
+      .update(`/live/${StreamPath}-${exp}-${process.env.RTMP_SECRET_KEY}`)
+      .digest('hex');
+
+    if (hash !== compareHash) {
+      return false;
+    }
+
+    return true;
   }
 }

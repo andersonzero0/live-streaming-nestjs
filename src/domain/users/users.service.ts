@@ -24,7 +24,7 @@ export class UsersService {
 
       const user = await this.user.save({ username, password: hash });
 
-      return user;
+      return new User(user);
     } catch (error) {
       throw error;
     }

@@ -5,18 +5,13 @@ import {
   Delete,
   Get,
   Param,
-  Patch,
   Post,
   Put,
   Query,
   UseInterceptors,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
-import {
-  GetGenerateTokenRtmpDto,
-  UpdateStreaming,
-  UserDto,
-} from './dto/user.dto';
+import { GetGenerateTokenRtmpDto, UserDto } from './dto/user.dto';
 import { User, UserWithoutPassword } from './entity/user.entity';
 import { DeleteResult } from 'typeorm';
 
@@ -71,15 +66,6 @@ export class UsersController {
   async update(@Param('id') id: string, @Body() data: UserDto): Promise<User> {
     try {
       return this.usersService.update(id, data);
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  @Patch(':id/streaming/:streaming')
-  async streaming(@Param() params: UpdateStreaming): Promise<User> {
-    try {
-      return this.usersService.updateStreaming(params);
     } catch (error) {
       throw error;
     }

@@ -15,7 +15,7 @@ GET http://localhost:3000/users/andersonzero0
 Content-Type: application/json
 
 ### Gerar token RTMP
-GET http://localhost:3000/users/generate-rtmp-token/4396f847-7dba-431f-90ff-431b88f185b0?password=123
+GET http://localhost:3000/users/generate-rtmp-token/9672a395-0e49-4a63-acc1-1a18c6ac167f?password=123
 Content-Type: application/json
 
 ### Atualizar um usuário

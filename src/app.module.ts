@@ -9,7 +9,7 @@ import { ConfigModule } from '@nestjs/config';
   imports: [
     TypeOrmModule.forRoot({
       type: 'sqlite',
-      database: '../.db/db.sqlite',
+      database: '.db/db.sqlite',
       synchronize: true,
       entities: [User],
     }),
