@@ -39,7 +39,6 @@ export class StreamService implements OnModuleInit {
 
     this.rtmpServer = new NodeMediaServer(config);
 
-    // auth
     /*this.rtmpServer.on('preConnect', (id, args) => {
       this.logger.debug(
         `[NodeEvent on preConnect] id=${id} args=${JSON.stringify(args)}`,
