@@ -13,11 +13,11 @@ import path from 'path';
 import fs from 'fs';
 import * as zlib from 'zlib';
 import { UsersService } from '../users/users.service';
+import { fsProvider } from '../../utils/fsProvider';
 
 @Controller('stream')
 export class StreamController {
   private readonly path: string;
-  private readonly debugPlayer: boolean;
   private readonly provider = fsProvider;
   private CONTENT_TYPE = {
     MANIFEST: 'application/vnd.apple.mpegurl',
@@ -27,7 +27,6 @@ export class StreamController {
 
   constructor(private readonly usersService: UsersService) {
     this.path = '/';
-    this.debugPlayer = true;
   }
 
   @Get(':username/*')
@@ -38,10 +37,6 @@ export class StreamController {
     @Param('username') username: string,
     @Param() params: string[],
   ) {
-    if (username === 'player.html' && this.debugPlayer) {
-      return this.writeDebugPlayer(res);
-    }
-
     const user = await this.usersService.findOne(username);
 
     if (!user) {
@@ -89,63 +84,6 @@ export class StreamController {
     });
   }
 
-  private writeDebugPlayer(res: Response) {
-    res.setHeader('Content-Type', this.CONTENT_TYPE.HTML);
-    res.status(HttpStatus.OK).send(`
-    <html>
-    <head><title>Debug Player</title></head>
-    <body>
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-    <video id="video" controlsList="nodownload"></video>
-    <div id="live-indicator" style="display: none; color: red;">&#8226; Ao vivo</div>
-    <br>
-    <input type="text" />
-    <button id="load">Load</button>
-    <div id="custom-controls">
-      <input type="range" id="volume" min="0" max="1" step="0.1">
-      <button id="fullscreen">Fullscreen</button>
-    </div>
-    <script>
-      var video = document.getElementById('video');
-      var liveIndicator = document.getElementById('live-indicator');
-      var volumeControl = document.getElementById('volume');
-      var fullscreenButton = document.getElementById('fullscreen');
-  
-      volumeControl.oninput = function() {
-        video.volume = volumeControl.value;
-      };
-  
-  
-        if(Hls.isSupported()) {
-          var hls = new Hls();
-          hls.attachMedia(video);
-          hls.on(Hls.Events.MANIFEST_PARSED,function() {
-            video.play();
-            liveIndicator.style.display = 'block';
-          });
-          document.querySelector("#load").addEventListener("click", function () {
-            hls.loadSource(document.querySelector("input").value);
-          })
-        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-          video.addEventListener('canplay',function() {
-            video.play();
-            liveIndicator.style.display = 'block';
-          });
-          document.querySelector("#load").addEventListener("click", function () {
-            video.src = document.querySelector("input").value;
-          })
-        }
-  
-        video.ontimeupdate = function() {
-          if (video.duration - video.currentTime <= 0.1) {
-            video.currentTime = video.duration;
-          }
-        };
-      </script>
-    </body>
-  </html>`);
-  }
-
   private writeManifest(req: Request, res: Response, next: NextFunction) {
     this.provider.getManifestStream(req, (err: any, stream: fs.ReadStream) => {
       if (err) {
@@ -178,23 +116,3 @@ export class StreamController {
     });
   }
 }
-const fsProvider = {
-  exists(req: Request, cb: (err: any, exists: boolean) => void) {
-    fs.exists(req['filePath'], (exists: boolean) => cb(null, exists));
-  },
-  getSegmentStream(
-    req: Request,
-    cb: (err: any, stream: fs.ReadStream) => void,
-  ) {
-    cb(null, fs.createReadStream(req['filePath']));
-  },
-  getManifestStream(
-    req: Request,
-    cb: (err: any, stream: fs.ReadStream) => void,
-  ) {
-    cb(
-      null,
-      fs.createReadStream(req['filePath'], { highWaterMark: 64 * 1024 }),
-    );
-  },
-};
