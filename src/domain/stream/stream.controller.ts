@@ -14,7 +14,9 @@ import fs from 'fs';
 import * as zlib from 'zlib';
 import { UsersService } from '../users/users.service';
 import { fsProvider } from '../../utils/fsProvider';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 
+@ApiTags('Stream')
 @Controller('stream')
 export class StreamController {
   private readonly path: string;
@@ -29,6 +31,9 @@ export class StreamController {
     this.path = '/';
   }
 
+  @ApiOperation({
+    summary: 'Stream video (HLS protocol)',
+  })
   @Get(':username/*')
   async serveHLS(
     @Req() req: Request,

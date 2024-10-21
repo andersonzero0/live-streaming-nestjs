@@ -18,6 +18,12 @@ export class UsersService {
     try {
       const { username, password } = data;
 
+      const userExists = await this.findOne(username);
+
+      if (userExists) {
+        throw new ForbiddenException('User already exists');
+      }
+
       const salt = await bcrypt.genSalt();
 
       const hash = await bcrypt.hash(password, salt);

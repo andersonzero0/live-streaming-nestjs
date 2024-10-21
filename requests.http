@@ -1,0 +1,22 @@
+POST http://localhost:3000/users
+Content-Type: application/json
+
+### Obter todos os usuários
+GET http://localhost:3000/users
+Content-Type: application/json
+
+### Obter um usuário específico
+GET http://localhost:3000/users/{username}
+Content-Type: application/json
+
+### Gerar token RTMP
+GET http://localhost:3000/users/generate-rtmp-token/{user_id}?password={password}
+Content-Type: application/json
+
+### Atualizar um usuário
+PUT http://localhost:3000/users/{id}
+Content-Type: application/json
+
+### Deletar um usuário
+DELETE http://localhost:3000/users/{id}
+Content-Type: application/json
