@@ -19,6 +19,39 @@ primary_region = 'gig'
   min_machines_running = 0
   processes = ['app']
 
+[[services]]
+  internal_port = 3000
+  protocol = "tcp"
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+  [services.concurrency]
+    type = "connections"
+    hard_limit = 25
+    soft_limit = 20
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+[[services]]
+  internal_port = 1935
+  protocol = "tcp"
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+  [services.concurrency]
+    type = "connections"
+    hard_limit = 25
+    soft_limit = 20
+  [[services.ports]]
+    port = 1935
+
 [[vm]]
   memory = '1gb'
   cpu_kind = 'shared'

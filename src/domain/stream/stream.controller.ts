@@ -33,6 +33,7 @@ export class StreamController {
 
   @ApiOperation({
     summary: 'Stream video (HLS protocol)',
+    description: `## This endpoint should be called by a video player that supports the HLS protocol to stream videos. The player must provide the username as part of the URL path.`,
   })
   @Get(':username/*')
   async serveHLS(

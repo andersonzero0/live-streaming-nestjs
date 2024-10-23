@@ -19,4 +19,8 @@ RUN apk add --no-cache python3 make g++
 COPY --from=builder /usr/src/app/package*.json ./
 COPY --from=builder /usr/src/app/dist/ ./dist/
 RUN npm install --production
+
+EXPOSE 3000
+EXPOSE 1935
+
 CMD ["node", "dist/main.js"]
