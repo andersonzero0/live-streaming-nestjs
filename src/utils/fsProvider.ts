@@ -1,3 +1,4 @@
+import { Request } from 'express';
 import fs from 'fs';
 
 export const fsProvider = {

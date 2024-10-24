@@ -8,24 +8,16 @@ import {
   Req,
   Res,
 } from '@nestjs/common';
-import { NextFunction, Response } from 'express';
+import { NextFunction, Request, Response } from 'express';
 import path from 'path';
-import fs from 'fs';
-import * as zlib from 'zlib';
 import { UsersService } from '../users/users.service';
-import { fsProvider } from '../../utils/fsProvider';
+import { serverHLS } from '../../utils/hls';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 
 @ApiTags('Stream')
 @Controller('stream')
 export class StreamController {
   private readonly path: string;
-  private readonly provider = fsProvider;
-  private CONTENT_TYPE = {
-    MANIFEST: 'application/vnd.apple.mpegurl',
-    SEGMENT: 'video/MP2T',
-    HTML: 'text/html',
-  };
 
   constructor(private readonly usersService: UsersService) {
     this.path = '/';
@@ -61,64 +53,7 @@ export class StreamController {
 
     const relativePath = path.normalize(uriRelativeToPath);
     const filePath = path.join(`public/media/${username}`, relativePath);
-    const extension = path.extname(filePath);
 
-    req['filePath'] = filePath;
-
-    const ae = req.headers['accept-encoding'] || '';
-    req['acceptsCompression'] = ae.includes('gzip');
-
-    this.provider.exists(req, (err: any, exists: boolean) => {
-      if (err) {
-        throw new HttpException(
-          'Internal Server Error',
-          HttpStatus.INTERNAL_SERVER_ERROR,
-        );
-      } else if (!exists) {
-        throw new HttpException('Not Found', HttpStatus.NOT_FOUND);
-      } else {
-        switch (extension) {
-          case '.m3u8':
-            req.headers['req-username'] = username;
-            return this.writeManifest(req, res, next);
-          case '.ts':
-            return this.writeSegment(req, res);
-          default:
-            next();
-        }
-      }
-    });
-  }
-
-  private writeManifest(req: Request, res: Response, next: NextFunction) {
-    this.provider.getManifestStream(req, (err: any, stream: fs.ReadStream) => {
-      if (err) {
-        res.status(HttpStatus.INTERNAL_SERVER_ERROR).end();
-        return next();
-      }
-
-      res.setHeader('Content-Type', this.CONTENT_TYPE.MANIFEST);
-      res.status(HttpStatus.OK);
-
-      if (req['acceptsCompression']) {
-        res.setHeader('Content-Encoding', 'gzip');
-        const gzip = zlib.createGzip();
-        stream.pipe(gzip).pipe(res);
-      } else {
-        stream.pipe(res, { end: true });
-      }
-    });
-  }
-
-  private writeSegment(req: Request, res: Response) {
-    this.provider.getSegmentStream(req, (err: any, stream: fs.ReadStream) => {
-      if (err) {
-        res.status(HttpStatus.INTERNAL_SERVER_ERROR).end();
-        return;
-      }
-      res.setHeader('Content-Type', this.CONTENT_TYPE.SEGMENT);
-      res.status(HttpStatus.OK);
-      stream.pipe(res);
-    });
+    serverHLS(req, res, next, username, filePath);
   }
 }
