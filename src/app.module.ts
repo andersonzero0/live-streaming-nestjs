@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
-import { StreamModule } from './domain/stream/stream.module';
+import { StreamModule } from './modules/stream/stream.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { UsersModule } from './domain/users/users.module';
-import { User } from './domain/users/entity/user.entity';
+import { UsersModule } from './modules/users/users.module';
+import { User } from './modules/users/entity/user.entity';
 import { ConfigModule } from '@nestjs/config';
 
 @Module({
