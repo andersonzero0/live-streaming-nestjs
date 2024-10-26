@@ -11,14 +11,24 @@ const CONTENT_TYPE = {
   SEGMENT: 'video/MP2T',
   HTML: 'text/html',
 };
+const rootPath = '/';
 
 export function serverHLS(
   req: Request,
   res: Response,
   next: NextFunction,
   username: string,
-  filePath: string,
+  param: string,
 ) {
+  const uri = param || 'output.m3u8';
+
+  const uriRelativeToPath = uri.startsWith(rootPath)
+    ? uri.slice(rootPath.length)
+    : uri;
+
+  const relativePath = path.normalize(uriRelativeToPath);
+  const filePath = path.join(`public/media/${username}`, relativePath);
+
   req['filePath'] = filePath;
   const extension = path.extname(filePath);
 

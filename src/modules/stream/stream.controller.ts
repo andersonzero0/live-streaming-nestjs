@@ -9,7 +9,6 @@ import {
   Res,
 } from '@nestjs/common';
 import { NextFunction, Request, Response } from 'express';
-import path from 'path';
 import { UsersService } from '../users/users.service';
 import { serverHLS } from '../../utils/hls';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -17,11 +16,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 @ApiTags('Stream')
 @Controller('stream')
 export class StreamController {
-  private readonly path: string;
-
-  constructor(private readonly usersService: UsersService) {
-    this.path = '/';
-  }
+  constructor(private readonly usersService: UsersService) {}
 
   @ApiOperation({
     summary: 'Stream video (HLS protocol)',
@@ -45,15 +40,6 @@ export class StreamController {
       throw new HttpException('Forbidden', HttpStatus.FORBIDDEN);
     }
 
-    const uri = params[0] || 'output.m3u8';
-
-    const uriRelativeToPath = uri.startsWith(this.path)
-      ? uri.slice(this.path.length)
-      : uri;
-
-    const relativePath = path.normalize(uriRelativeToPath);
-    const filePath = path.join(`public/media/${username}`, relativePath);
-
-    serverHLS(req, res, next, username, filePath);
+    serverHLS(req, res, next, username, params[0]);
   }
 }
