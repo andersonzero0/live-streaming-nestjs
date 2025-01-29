@@ -174,20 +174,20 @@ export class StreamService implements OnModuleInit {
     ffmpeg(`rtmp://localhost:1935/live/${streamPath}?sign=${sign}`)
       .addOptions([
         '-c:v libx264',
-        '-preset ultrafast',
+        '-preset veryfast',
         '-tune zerolatency',
-        '-maxrate 3000k',
-        '-bufsize 6000k',
+        '-maxrate 2000k',
+        '-bufsize 4000k',
         '-pix_fmt yuv420p',
-        '-g 30',
+        '-g 60',
         '-c:a aac',
-        '-b:a 160k',
+        '-b:a 128k',
         '-ac 2',
         '-ar 44100',
         '-f hls',
-        '-hls_time 1',
+        '-hls_time 2',
         '-hls_flags delete_segments',
-        '-hls_list_size 2',
+        '-hls_list_size 5',
       ])
       .output(`./public/media/${streamPath}/output.m3u8`)
       .on('start', () => {
